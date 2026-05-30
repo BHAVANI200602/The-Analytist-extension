@@ -1,51 +1,89 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "reika",
-  "displayName": "Reika",
-  "description": "AI-powered code suggestions and chat",
-  "version": "0.0.1",
+  "name": "the-analytist",
+  "displayName": "The Analytist",
+  "description": "Premium AI Error Assistant & Workspace Code Analyzer (React + Tailwind)",
+  "version": "1.0.0",
+  "publisher": "the-analytist",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
+    "AI",
+    "Programming Languages",
+    "Linters",
     "Other"
   ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "reika.askAI",
-        "title": "Reika: Ask AI"
+        "command": "the-analytist.openChat",
+        "title": "The Analytist: Open AI Assistant"
       },
       {
-        "command": "reika.openChat",
-        "title": "Reika: Open Chat"
+        "command": "the-analytist.analyzeError",
+        "title": "The Analytist: Analyze Error"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "reika.askAI",
+          "command": "the-analytist.analyzeError",
           "when": "editorHasSelection",
           "group": "navigation"
         },
         {
-          "command": "reika.openChat",
+          "command": "the-analytist.openChat",
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "The Analytist",
+      "properties": {
+        "the-analytist.defaultProvider": {
+          "type": "string",
+          "default": "gemini",
+          "enum": [
+            "openai",
+            "gemini",
+            "anthropic",
+            "openrouter",
+            "custom"
+          ],
+          "description": "Default AI service provider."
+        },
+        "the-analytist.defaultModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Default model name to use."
+        },
+        "the-analytist.customEndpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/v1",
+          "description": "Base URL for the Custom OpenAI-compatible provider (e.g. Ollama, LM Studio)."
+        },
+        "the-analytist.enableTokenOptimization": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically minimize token usage via sliding windows and comment stripping."
+        }
+      }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "compile:extension": "tsc -p ./",
+    "compile:webview": "npm run build --prefix webview-ui",
+    "compile": "npm run compile:extension && npm run compile:webview"
   },
   "devDependencies": {
     "@types/node": "^18.11.18",
     "@types/node-fetch": "^2.6.12",
     "@types/vscode": "^1.74.0",
-    "typescript": "^4.9.4"
+    "typescript": "^6.0.0"
   },
   "dependencies": {
     "node-fetch": "^2.6.7"

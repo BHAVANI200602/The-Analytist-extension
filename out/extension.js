@@ -15,288 +15,542 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deactivate = exports.activate = void 0;
+exports.activate = activate;
+exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const node_fetch_1 = __importDefault(require("node-fetch"));
-let previousEdit = null;
-let cachedWebviewPanel = null;
-let lastPromptId = null;
 function activate(context) {
+    console.log('[The Analytist Backend] Activating...');
+    let cachedWebviewPanel = null;
     const registerWebviewMessageHandler = (panel) => {
         panel.webview.onDidReceiveMessage(async (message) => {
-            console.log('[Reika] Received webview message:', message);
-            const editor = vscode.window.activeTextEditor;
-            if (message.command === 'sendPrompt') {
-                if (message.promptId === lastPromptId) {
-                    console.log('[Reika] Duplicate promptId detected, skipping:', message.promptId);
-                    return;
+            console.log('[The Analytist Backend] Message command:', message.command);
+            try {
+                if (message.command === 'ready') {
+                    await sendInitialState(panel, context);
                 }
-                lastPromptId = message.promptId !== undefined ? message.promptId : null;
-                console.log('[Reika] Updated lastPromptId:', lastPromptId);
-                try {
-                    console.log('[Reika] Sending request to backend:', message.text);
-                    const res = await (0, node_fetch_1.default)('https://proxy-server-inky-three.vercel.app/ask', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: message.text })
-                    });
-                    console.log('[Reika] Backend response status:', res.status);
-                    if (!res.ok) {
-                        throw new Error(`HTTP error! status: ${res.status}, message: ${await res.text()}`);
-                    }
-                    const data = await res.json();
-                    console.log('[Reika] Backend response data:', data);
-                    const reply = data.reply || 'Reika did not respond.';
-                    let code = '';
-                    let explanation = reply;
-                    let language = null;
-                    if (reply.includes('```')) {
-                        const codeMatch = reply.match(/```(\w+)?\n?([\s\S]*?)```/);
-                        if (codeMatch) {
-                            language = codeMatch[1]?.toLowerCase() || null;
-                            code = codeMatch[2].trim();
-                            const parts = reply.split(/```[\s\S]*?```/).map((p) => p.trim()).filter((p) => p).join('\n');
-                            explanation = parts || 'No explanation provided.';
-                        }
-                    }
-                    const isCode = !!code && (language || /^[ \t]*(function|class|const|let|var|#include|def|print|if|else)/.test(code));
-                    console.log('[Reika] Posting showResponse to webview:', {
-                        command: 'showResponse',
-                        code: isCode ? code : '',
-                        explanation,
-                        isCode,
-                        codeLanguage: isCode ? (language || 'plaintext') : null,
-                        promptId: message.promptId || null
-                    });
-                    await panel.webview.postMessage({
-                        command: 'showResponse',
-                        code: isCode ? code : '',
-                        explanation,
-                        isCode,
-                        codeLanguage: isCode ? (language || 'plaintext') : null,
-                        promptId: message.promptId || null
-                    });
-                    if (isCode && editor) {
-                        const doc = editor.document;
-                        const range = new vscode.Range(editor.selection.start, editor.selection.end);
-                        const originalText = doc.getText(range);
-                        previousEdit = { document: doc, range, originalText, codeText: code };
-                        console.log('[Reika] Stored previousEdit:', {
-                            document: doc.uri.fsPath,
-                            range,
-                            codeText: code
+                if (message.command === 'saveApiKey') {
+                    if (message.provider && message.apiKey !== undefined) {
+                        await context.secrets.store(`the-analytist.apiKey.${message.provider}`, message.apiKey);
+                        vscode.window.showInformationMessage(`✅ Saved API Key for ${message.provider.toUpperCase()} securely.`);
+                        panel.webview.postMessage({
+                            command: 'apiKeySaved',
+                            provider: message.provider,
+                            hasKey: message.apiKey.length > 0
                         });
                     }
                 }
-                catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                    console.error('[Reika] Error in sendPrompt:', errorMessage);
-                    await panel.webview.postMessage({
-                        command: 'showResponse',
-                        code: '',
-                        explanation: '❌ Error contacting Reika backend: ' + errorMessage,
-                        isCode: false,
-                        codeLanguage: null,
-                        promptId: message.promptId || null
+                if (message.command === 'getApiKeysStatus') {
+                    const status = {};
+                    const providers = ['openai', 'gemini', 'anthropic', 'openrouter', 'custom'];
+                    for (const p of providers) {
+                        const key = await context.secrets.get(`the-analytist.apiKey.${p}`);
+                        status[p] = !!key;
+                    }
+                    panel.webview.postMessage({
+                        command: 'apiKeysStatus',
+                        status
                     });
-                    vscode.window.showErrorMessage(`Error contacting Reika backend: ${errorMessage}`);
                 }
-            }
-            if (message.command === 'acceptEdit') {
-                const currentEditor = vscode.window.activeTextEditor;
-                if (!currentEditor) {
-                    console.log('[Reika] No active text editor for acceptEdit');
-                    vscode.window.showErrorMessage('❌ No active text editor to apply changes.');
-                    return;
+                if (message.command === 'searchWorkspaceFiles') {
+                    const query = message.query || '';
+                    const files = await searchWorkspaceFiles(query);
+                    panel.webview.postMessage({
+                        command: 'workspaceFilesList',
+                        files
+                    });
                 }
-                if (!previousEdit || !previousEdit.codeText) {
-                    console.log('[Reika] No previous edit available for acceptEdit');
-                    vscode.window.showErrorMessage('❌ No edit available to apply.');
-                    return;
-                }
-                if (previousEdit.document.isClosed) {
-                    console.log('[Reika] Document is closed for acceptEdit');
-                    vscode.window.showErrorMessage('❌ Cannot apply edit: Document is closed.');
-                    return;
-                }
-                if (previousEdit.document !== currentEditor.document) {
-                    console.log('[Reika] Document mismatch in acceptEdit');
-                    vscode.window.showErrorMessage('❌ Document mismatch: Please ensure the correct file is open.');
-                    return;
-                }
-                try {
-                    const isValidRange = previousEdit.range.start.isBeforeOrEqual(previousEdit.range.end) &&
-                        previousEdit.range.end.line < previousEdit.document.lineCount;
-                    if (!isValidRange) {
-                        console.log('[Reika] Invalid range in acceptEdit');
-                        vscode.window.showErrorMessage('❌ Invalid range in document.');
-                        return;
+                if (message.command === 'analyzeError') {
+                    const { errorText, provider, model, customEndpoint, selectedFiles = [], optimizationOptions = { stripComments: true, stripWhitespace: true, lineWindowSize: 30 } } = message;
+                    if (!errorText || !errorText.trim()) {
+                        throw new Error('Error log input is empty.');
                     }
-                    const edit = new vscode.WorkspaceEdit();
-                    edit.replace(previousEdit.document.uri, previousEdit.range, previousEdit.codeText);
-                    const success = await vscode.workspace.applyEdit(edit);
-                    if (success) {
-                        await previousEdit.document.save();
-                        console.log('[Reika] Edit applied and saved successfully');
-                        vscode.window.showInformationMessage('✅ Code applied and saved successfully.');
-                        previousEdit = null;
+                    const apiKey = await context.secrets.get(`the-analytist.apiKey.${provider}`);
+                    if (!apiKey && provider !== 'custom') {
+                        throw new Error(`API Key for ${provider?.toUpperCase()} is missing. Please save your key in Settings.`);
                     }
-                    else {
-                        console.log('[Reika] Failed to apply edit');
-                        vscode.window.showErrorMessage('❌ Failed to apply code to the file.');
-                    }
-                }
-                catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                    console.error('[Reika] Error applying edit:', errorMessage);
-                    vscode.window.showErrorMessage(`❌ Error applying code: ${errorMessage}`);
-                }
-            }
-            if (message.command === 'rejectEdit') {
-                const currentEditor = vscode.window.activeTextEditor;
-                if (!currentEditor || !previousEdit) {
-                    console.log('[Reika] No editor or previous edit for rejectEdit');
-                    vscode.window.showWarningMessage('⚠️ No edit available or editor closed.');
-                    return;
-                }
-                if (previousEdit.document !== currentEditor.document) {
-                    console.log('[Reika] Document mismatch in rejectEdit');
-                    vscode.window.showWarningMessage('⚠️ Document mismatch: Please ensure the correct file is open.');
-                    return;
-                }
-                try {
-                    const edit = new vscode.WorkspaceEdit();
-                    edit.replace(previousEdit.document.uri, previousEdit.range, previousEdit.originalText);
-                    const success = await vscode.workspace.applyEdit(edit);
-                    if (success) {
-                        console.log('[Reika] Edit reverted successfully');
-                        vscode.window.showInformationMessage('❌ Edit reverted.');
-                        previousEdit = null;
+                    panel.webview.postMessage({ command: 'diagnosticProgress', status: 'Scanning files in stack trace...' });
+                    const detectedSnippets = await autoResolveErrorFiles(errorText, optimizationOptions);
+                    panel.webview.postMessage({ command: 'diagnosticProgress', status: 'Processing selected context files...' });
+                    const manualSnippets = await readSelectedContextFiles(selectedFiles, optimizationOptions);
+                    panel.webview.postMessage({ command: 'diagnosticProgress', status: 'Compacting payload context...' });
+                    const contextSnippets = [...detectedSnippets, ...manualSnippets];
+                    const uniqueSnippets = contextSnippets.filter((v, i, a) => a.findIndex(t => t.filePath === v.filePath) === i);
+                    const systemPrompt = `You are "The Analytist", a highly polished, state-of-the-art AI Coding Assistant specializing in workspace diagnostics and error resolution.
+Your goal is to analyze the user's compiler errors/stack trace logs alongside the relevant file code segments and output a highly accurate resolution.
+
+Requirements:
+1. Explain exactly what causes the error briefly.
+2. Provide the corrected/completed code inside syntax-highlighted markdown code blocks.
+3. Detail clear, step-by-step instructions or walkthroughs on how to resolve the error.
+4. Keep the output extremely clean, professional, and directly actionable. Avoid fluff.`;
+                    let promptContext = "### ERROR INPUT:\n" + errorText + "\n\n";
+                    if (uniqueSnippets.length > 0) {
+                        promptContext += "### SOURCE CODE CONTEXT:\n";
+                        for (const snip of uniqueSnippets) {
+                            promptContext += `\n--- File: ${snip.filePath} `;
+                            if (snip.lineRange) {
+                                promptContext += `(Lines ${snip.lineRange})`;
+                            }
+                            promptContext += ` ---\n\`\`\`${snip.language}\n${snip.content}\n\`\`\`\n`;
+                        }
                     }
                     else {
-                        console.log('[Reika] Failed to revert edit');
-                        vscode.window.showErrorMessage('❌ Failed to revert edit.');
+                        promptContext += "### SOURCE CODE CONTEXT:\n(No local files detected or manually added to active context.)\n";
                     }
+                    panel.webview.postMessage({ command: 'diagnosticProgress', status: 'Querying selected AI engine...' });
+                    const responseText = await callAIProvider({
+                        provider: provider || 'gemini',
+                        model: model || 'gemini-2.5-flash',
+                        apiKey: apiKey || '',
+                        customEndpoint: customEndpoint || ''
+                    }, systemPrompt, promptContext);
+                    panel.webview.postMessage({
+                        command: 'analysisResult',
+                        success: true,
+                        result: responseText,
+                        snippets: uniqueSnippets.map(s => ({ filePath: s.filePath, lineRange: s.lineRange }))
+                    });
                 }
-                catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                    console.error('[Reika] Error reverting edit:', errorMessage);
-                    vscode.window.showErrorMessage(`❌ Error reverting edit: ${errorMessage}`);
-                }
+            }
+            catch (err) {
+                console.error('[The Analytist Backend] Error:', err);
+                panel.webview.postMessage({
+                    command: 'analysisResult',
+                    success: false,
+                    error: err.message || 'An unexpected error occurred.'
+                });
+                vscode.window.showErrorMessage(`The Analytist: ${err.message || err}`);
             }
         }, undefined, context.subscriptions);
     };
-    const askDisposable = vscode.commands.registerCommand('reika.askAI', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            console.log('[Reika] No active text editor for reika.askAI');
-            vscode.window.showErrorMessage('No active text editor.');
-            return;
-        }
-        const selection = editor.selection;
-        const selectedText = editor.document.getText(selection).trim();
-        if (!selectedText) {
-            console.log('[Reika] No text selected for reika.askAI');
-            vscode.window.showWarningMessage('Please select some code or text.');
-            return;
-        }
-        console.log('[Reika] Selected text:', selectedText);
-        if (!cachedWebviewPanel) {
-            cachedWebviewPanel = vscode.window.createWebviewPanel('reikaChat', 'Reika Chat', vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src'))] });
-            cachedWebviewPanel.onDidDispose(() => {
-                console.log('[Reika] Webview panel disposed');
-                cachedWebviewPanel = null;
-                previousEdit = null;
-                lastPromptId = null;
-            }, null, context.subscriptions);
-            const htmlPath = path.join(context.extensionPath, 'src', 'chat.html');
-            const cssPath = vscode.Uri.file(path.join(context.extensionPath, 'src', 'style.css'));
-            const jsPath = vscode.Uri.file(path.join(context.extensionPath, 'src', 'script.js'));
-            const cssUri = cachedWebviewPanel.webview.asWebviewUri(cssPath);
-            const jsUri = cachedWebviewPanel.webview.asWebviewUri(jsPath);
-            try {
-                let htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-                htmlContent = htmlContent.replace('href="style.css"', `href="${cssUri}"`);
-                htmlContent = htmlContent.replace('src="script.js"', `src="${jsUri}"`);
-                cachedWebviewPanel.webview.html = htmlContent;
-                console.log('[Reika] Webview HTML loaded successfully');
-            }
-            catch (error) {
-                console.error('[Reika] Failed to load chat.html:', error);
-                vscode.window.showErrorMessage('Failed to load chat interface.');
-                return;
-            }
-            registerWebviewMessageHandler(cachedWebviewPanel);
-        }
-        else {
+    const openChatDisposable = vscode.commands.registerCommand('the-analytist.openChat', async () => {
+        if (cachedWebviewPanel) {
             cachedWebviewPanel.reveal(vscode.ViewColumn.Two);
-            console.log('[Reika] Webview panel revealed');
+            return;
         }
-        const promptId = Date.now().toString();
-        console.log('[Reika] Sending prompt to webview:', { text: selectedText, promptId });
+        cachedWebviewPanel = vscode.window.createWebviewPanel('theAnalytistPanel', 'The Analytist', vscode.ViewColumn.Two, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'out', 'webview-ui'))]
+        });
+        cachedWebviewPanel.onDidDispose(() => {
+            cachedWebviewPanel = null;
+        }, null, context.subscriptions);
+        // Load Vite compiled assets
+        const htmlPath = path.join(context.extensionPath, 'out', 'webview-ui', 'index.html');
         try {
-            await cachedWebviewPanel.webview.postMessage({ command: 'sendPrompt', text: selectedText, promptId });
+            let htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+            // Resolve Vite assets to local webview URIs
+            // Vite build is configured to output single files named index.js and index.css directly in out/webview-ui
+            const jsUri = cachedWebviewPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'out', 'webview-ui', 'index.js')));
+            const cssUri = cachedWebviewPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'out', 'webview-ui', 'index.css')));
+            // Replace scripts/links inside html
+            // Handles both absolute (/index.js) and relative (index.js) references
+            htmlContent = htmlContent.replace(/src="\/index\.js"/g, `src="${jsUri}"`);
+            htmlContent = htmlContent.replace(/src="index\.js"/g, `src="${jsUri}"`);
+            htmlContent = htmlContent.replace(/href="\/index\.css"/g, `href="${cssUri}"`);
+            htmlContent = htmlContent.replace(/href="index\.css"/g, `href="${cssUri}"`);
+            cachedWebviewPanel.webview.html = htmlContent;
         }
         catch (error) {
-            console.error('[Reika] Failed to post sendPrompt message:', error);
-            vscode.window.showErrorMessage('Failed to send prompt to webview.');
-            return;
+            vscode.window.showErrorMessage('Failed to load Compiled React App. Please run "npm run compile" to bundle assets.');
+            console.error('[The Analytist Backend] Loading HTML error:', error);
+        }
+        registerWebviewMessageHandler(cachedWebviewPanel);
+    });
+    const analyzeErrorDisposable = vscode.commands.registerCommand('the-analytist.analyzeError', async () => {
+        const editor = vscode.window.activeTextEditor;
+        let selectedText = '';
+        if (editor) {
+            selectedText = editor.document.getText(editor.selection).trim();
+        }
+        await vscode.commands.executeCommand('the-analytist.openChat');
+        if (selectedText && cachedWebviewPanel) {
+            cachedWebviewPanel.webview.postMessage({
+                command: 'autoPasteError',
+                text: selectedText
+            });
         }
     });
-    const chatDisposable = vscode.commands.registerCommand('reika.openChat', async () => {
-        if (!cachedWebviewPanel) {
-            cachedWebviewPanel = vscode.window.createWebviewPanel('reikaChat', 'Reika Chat', vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src'))] });
-            cachedWebviewPanel.onDidDispose(() => {
-                console.log('[Reika] Webview panel disposed');
-                cachedWebviewPanel = null;
-                previousEdit = null;
-                lastPromptId = null;
-            }, null, context.subscriptions);
-            const htmlPath = path.join(context.extensionPath, 'src', 'chat.html');
-            const cssPath = vscode.Uri.file(path.join(context.extensionPath, 'src', 'style.css'));
-            const jsPath = vscode.Uri.file(path.join(context.extensionPath, 'src', 'script.js'));
-            const cssUri = cachedWebviewPanel.webview.asWebviewUri(cssPath);
-            const jsUri = cachedWebviewPanel.webview.asWebviewUri(jsPath);
-            try {
-                let htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-                htmlContent = htmlContent.replace('href="style.css"', `href="${cssUri}"`);
-                htmlContent = htmlContent.replace('src="script.js"', `src="${jsUri}"`);
-                cachedWebviewPanel.webview.html = htmlContent;
-                console.log('[Reika] Webview HTML loaded successfully');
+    context.subscriptions.push(openChatDisposable, analyzeErrorDisposable);
+    console.log('[The Analytist Backend] Activated.');
+}
+function deactivate() {
+    console.log('[The Analytist Backend] Deactivated.');
+}
+// Helpers
+async function sendInitialState(panel, context) {
+    const config = vscode.workspace.getConfiguration('the-analytist');
+    const defaultProvider = config.get('defaultProvider', 'gemini');
+    const defaultModel = config.get('defaultModel', 'gemini-2.5-flash');
+    const customEndpoint = config.get('customEndpoint', 'http://localhost:11434/v1');
+    const enableOpt = config.get('enableTokenOptimization', true);
+    const status = {};
+    const providers = ['openai', 'gemini', 'anthropic', 'openrouter', 'custom'];
+    for (const p of providers) {
+        const key = await context.secrets.get(`the-analytist.apiKey.${p}`);
+        status[p] = !!key;
+    }
+    const files = await searchWorkspaceFiles('');
+    panel.webview.postMessage({
+        command: 'initialState',
+        settings: {
+            defaultProvider,
+            defaultModel,
+            customEndpoint,
+            enableOpt
+        },
+        apiKeysStatus: status,
+        workspaceFiles: files
+    });
+}
+async function searchWorkspaceFiles(query) {
+    if (!vscode.workspace.workspaceFolders) {
+        return [];
+    }
+    try {
+        const files = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.next/**,**/out/**,**/package-lock.json,**/yarn.lock,**/pnpm-lock.yaml,**/*.png,**/*.jpg,**/*.jpeg,**/*.gif,**/*.svg,**/*.ico,**/*.woff2?,**/*.pdf,**/*.zip,**/*.tar.gz}');
+        let relativePaths = files.map(file => vscode.workspace.asRelativePath(file));
+        if (query) {
+            const q = query.toLowerCase();
+            relativePaths = relativePaths.filter(p => p.toLowerCase().includes(q));
+        }
+        return relativePaths.slice(0, 150);
+    }
+    catch (e) {
+        console.error('[The Analytist Backend] File search error:', e);
+        return [];
+    }
+}
+async function autoResolveErrorFiles(errorText, opt) {
+    const snippets = [];
+    if (!vscode.workspace.workspaceFolders) {
+        return snippets;
+    }
+    const patterns = [
+        /(?:at\s+.*?\s+\()?([a-zA-Z0-9_\-\.\/\\ ]+\.[a-zA-Z0-9]+):(\d+)(?::(\d+))?/g,
+        /File\s+"([^"]+)",\s+line\s+(\d+)/g,
+        /in\s+([a-zA-Z0-9_\-\.\/\\ ]+\.[a-zA-Z0-9]+)\s+on\s+line\s+(\d+)/g
+    ];
+    const matchedLocations = [];
+    for (const regex of patterns) {
+        let match;
+        regex.lastIndex = 0;
+        while ((match = regex.exec(errorText)) !== null) {
+            const filePathCandidate = match[1].trim();
+            const lineNumber = parseInt(match[2], 10);
+            if (filePathCandidate && !isNaN(lineNumber)) {
+                matchedLocations.push({ filePath: filePathCandidate, line: lineNumber });
             }
-            catch (error) {
-                console.error('[Reika] Failed to load chat.html:', error);
-                vscode.window.showErrorMessage('Failed to load chat interface.');
-                return;
-            }
-            registerWebviewMessageHandler(cachedWebviewPanel);
+        }
+    }
+    const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+    for (const loc of matchedLocations) {
+        let absolutePath = '';
+        let testPath = path.isAbsolute(loc.filePath) ? loc.filePath : path.join(rootPath, loc.filePath);
+        if (fs.existsSync(testPath) && fs.statSync(testPath).isFile()) {
+            absolutePath = testPath;
         }
         else {
-            cachedWebviewPanel.reveal(vscode.ViewColumn.Two);
-            console.log('[Reika] Webview panel revealed');
+            const baseName = path.basename(loc.filePath);
+            const foundFiles = await vscode.workspace.findFiles(`**/${baseName}`);
+            if (foundFiles.length > 0) {
+                absolutePath = foundFiles[0].fsPath;
+            }
         }
-    });
-    context.subscriptions.push(askDisposable, chatDisposable);
+        if (absolutePath) {
+            const relPath = vscode.workspace.asRelativePath(absolutePath);
+            try {
+                const fileContent = fs.readFileSync(absolutePath, 'utf-8');
+                const snippet = extractLineWindow(relPath, fileContent, loc.line, opt.lineWindowSize || 30, opt);
+                snippets.push(snippet);
+                console.log(`[The Analytist Backend] Stack match auto-loaded: ${relPath}:${loc.line}`);
+            }
+            catch (err) {
+                console.error(`[The Analytist Backend] Read failed on: ${relPath}`, err);
+            }
+        }
+    }
+    return snippets;
 }
-exports.activate = activate;
-function deactivate() {
-    cachedWebviewPanel?.dispose();
-    cachedWebviewPanel = null;
-    lastPromptId = null;
-    previousEdit = null;
-    console.log('[Reika] Extension deactivated');
+async function readSelectedContextFiles(selectedFiles, opt) {
+    const snippets = [];
+    if (!vscode.workspace.workspaceFolders) {
+        return snippets;
+    }
+    const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+    for (const relPath of selectedFiles) {
+        const absPath = path.join(rootPath, relPath);
+        if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+            try {
+                const fileContent = fs.readFileSync(absPath, 'utf-8');
+                const language = getLanguageFromExtension(relPath);
+                let compressedContent = fileContent;
+                if (opt.stripComments) {
+                    compressedContent = stripComments(compressedContent, language);
+                }
+                if (opt.stripWhitespace) {
+                    compressedContent = compressWhitespace(compressedContent);
+                }
+                snippets.push({
+                    filePath: relPath,
+                    content: compressedContent,
+                    language,
+                    lineRange: 'Full File'
+                });
+            }
+            catch (err) {
+                console.error(`[The Analytist Backend] Reading manual context file failed: ${relPath}`, err);
+            }
+        }
+    }
+    return snippets;
 }
-exports.deactivate = deactivate;
+function extractLineWindow(filePath, fileContent, targetLine, windowSize, opt) {
+    const lines = fileContent.split(/\r?\n/);
+    const totalLines = lines.length;
+    const startLine = Math.max(1, targetLine - windowSize);
+    const endLine = Math.min(totalLines, targetLine + windowSize);
+    const slicedLines = lines.slice(startLine - 1, endLine);
+    let content = slicedLines.join('\n');
+    const language = getLanguageFromExtension(filePath);
+    if (opt.stripComments) {
+        content = stripComments(content, language);
+    }
+    if (opt.stripWhitespace) {
+        content = compressWhitespace(content);
+    }
+    return {
+        filePath,
+        content,
+        language,
+        lineRange: `${startLine}-${endLine}`
+    };
+}
+function getLanguageFromExtension(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+        case '.js': return 'javascript';
+        case '.ts': return 'typescript';
+        case '.tsx': return 'typescript';
+        case '.jsx': return 'javascript';
+        case '.py': return 'python';
+        case '.html': return 'html';
+        case '.css': return 'css';
+        case '.json': return 'json';
+        case '.md': return 'markdown';
+        case '.cpp':
+        case '.cc':
+        case '.h': return 'cpp';
+        case '.go': return 'go';
+        case '.rs': return 'rust';
+        case '.java': return 'java';
+        case '.cs': return 'csharp';
+        case '.rb': return 'ruby';
+        case '.php': return 'php';
+        case '.sh': return 'bash';
+        default: return 'plaintext';
+    }
+}
+function stripComments(content, language) {
+    if (['javascript', 'typescript', 'cpp', 'java', 'csharp', 'go', 'rust', 'php'].includes(language)) {
+        return content
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/([^\\:]|^)\/\/.*$/gm, '$1');
+    }
+    else if (language === 'python' || language === 'bash' || language === 'ruby') {
+        return content.replace(/(^|[^\\])#.*$/gm, '$1');
+    }
+    else if (language === 'html') {
+        return content.replace(/<!--[\s\S]*?-->/g, '');
+    }
+    else if (language === 'css') {
+        return content.replace(/\/\*[\s\S]*?\*\//g, '');
+    }
+    return content;
+}
+function compressWhitespace(content) {
+    return content
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[ \t]+$/gm, '');
+}
+async function callAIProvider(config, systemPrompt, userPrompt) {
+    const { provider, model, apiKey, customEndpoint } = config;
+    console.log(`[The Analytist Backend] Querying ${provider} with model ${model}`);
+    if (provider === 'gemini') {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const body = {
+            contents: [{
+                    role: 'user',
+                    parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+                }],
+            generationConfig: {
+                temperature: 0.1
+            }
+        };
+        const res = await (0, node_fetch_1.default)(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Gemini API Error (${res.status}): ${text}`);
+        }
+        const data = await res.json();
+        const candidate = data.candidates?.[0];
+        const textResponse = candidate?.content?.parts?.[0]?.text;
+        if (!textResponse) {
+            throw new Error('Empty response received from Gemini AI Studio.');
+        }
+        return textResponse;
+    }
+    if (provider === 'openai') {
+        const url = 'https://api.openai.com/v1/chat/completions';
+        const body = {
+            model: model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.1
+        };
+        const res = await (0, node_fetch_1.default)(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`OpenAI API Error (${res.status}): ${text}`);
+        }
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content;
+        if (!reply) {
+            throw new Error('Empty response from OpenAI API.');
+        }
+        return reply;
+    }
+    if (provider === 'anthropic') {
+        const url = 'https://api.anthropic.com/v1/messages';
+        const body = {
+            model: model,
+            max_tokens: 4000,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }],
+            temperature: 0.1
+        };
+        const res = await (0, node_fetch_1.default)(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Anthropic Claude API Error (${res.status}): ${text}`);
+        }
+        const data = await res.json();
+        const reply = data.content?.[0]?.text;
+        if (!reply) {
+            throw new Error('Empty response from Anthropic Claude.');
+        }
+        return reply;
+    }
+    if (provider === 'openrouter') {
+        const url = 'https://openrouter.ai/api/v1/chat/completions';
+        const body = {
+            model: model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.1
+        };
+        const res = await (0, node_fetch_1.default)(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': 'https://github.com/BHAVANI200602/The-Analytist',
+                'X-Title': 'The Analytist VSCode'
+            },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`OpenRouter API Error (${res.status}): ${text}`);
+        }
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content;
+        if (!reply) {
+            throw new Error('Empty response from OpenRouter.');
+        }
+        return reply;
+    }
+    if (provider === 'custom') {
+        const endpoint = customEndpoint || 'http://localhost:11434/v1';
+        const cleanEndpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+        const url = `${cleanEndpoint}/chat/completions`;
+        const body = {
+            model: model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.1
+        };
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+        const res = await (0, node_fetch_1.default)(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Custom OpenAI Endpoint Error (${res.status}): ${text}`);
+        }
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content;
+        if (!reply) {
+            throw new Error('Empty response from Custom endpoint.');
+        }
+        return reply;
+    }
+    throw new Error(`Unsupported provider: ${provider}`);
+}

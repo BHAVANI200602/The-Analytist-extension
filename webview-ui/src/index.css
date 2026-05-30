@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-charcoal-950 text-charcoal-100 font-sans h-screen flex flex-col overflow-hidden;
+  }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3A3A3A; }
+
+/* Prism overrides — match charcoal theme */
+pre[class*="language-"] {
+  background: #111111 !important;
+  border: none !important;
+  border-radius: 0 0 6px 6px !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 0.78rem !important;
+  line-height: 1.6 !important;
+}
+code[class*="language-"] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+/* Prism token colors adjusted for dark theme */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #4A4A4A !important;
+}
+.token.punctuation { color: #6B6B6B !important; }
+.token.keyword { color: #BDBDBD !important; }
+.token.string { color: #9E9E9E !important; }
+.token.number { color: #D9D9D9 !important; }
+.token.function { color: #ECECF1 !important; }
+.token.operator { color: #9E9E9E !important; }
+
+/* Settings drawer slide-in */
+.settings-open {
+  transform: translateX(0) !important;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.7);
+}
+
+/* Thinking dots */
+@keyframes bounceDot {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}
+.thinking-bounce {
+  animation: bounceDot 1.4s infinite ease-in-out both;
+}
+
+/* Animate in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}

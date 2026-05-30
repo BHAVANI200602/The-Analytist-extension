@@ -12,13 +12,15 @@
         "types": ["node", "vscode"],
         "noImplicitAny": true,
         "strictNullChecks": true,
-        "moduleResolution": "node"
+        "moduleResolution": "node",
+        "ignoreDeprecations": "6.0"
     },
     "include": [
         "src/**/*"
     ],
     "exclude": [
         "node_modules",
+        "webview-ui",
         "**/*.spec.ts"
     ]
 }
