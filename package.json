@@ -3,7 +3,7 @@
   "name": "the-analytist",
   "displayName": "The Analytist",
   "description": "Premium AI Error Assistant & Workspace Code Analyzer (React + Tailwind)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "Bhavani-200602",
   "license": "MIT",
   "repository": {
@@ -19,7 +19,10 @@
     "Linters",
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:the-analytist.openChat",
+    "onCommand:the-analytist.analyzeError"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -80,7 +83,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile:extension": "tsc -p ./",
+    "compile:extension": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "compile:webview": "npm run build --prefix webview-ui",
     "compile": "npm run compile:extension && npm run compile:webview"
   },
@@ -88,6 +91,7 @@
     "@types/node": "^18.11.18",
     "@types/node-fetch": "^2.6.12",
     "@types/vscode": "^1.74.0",
+    "esbuild": "^0.25.0",
     "typescript": "^6.0.0"
   },
   "dependencies": {
