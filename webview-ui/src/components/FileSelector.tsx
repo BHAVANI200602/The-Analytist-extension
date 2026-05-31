@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, FileCode2, Check } from 'lucide-react';
+import { Search, FileCode2 } from 'lucide-react';
 
 interface FileSelectorProps {
   files: string[];

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, ShieldAlert } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { vscode } from './vscode';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { FileSelector } from './components/FileSelector';
@@ -125,9 +125,6 @@ const App: React.FC = () => {
     setErrorInput('');
   };
 
-  const isCredentialsMissing = provider !== 'custom' && !apiKeysStatus[provider];
-  const isOptimized = optStripComments || optStripWhitespace;
-
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden bg-charcoal-950">
 
@@ -135,26 +132,11 @@ const App: React.FC = () => {
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-charcoal-800 bg-charcoal-950 z-30 shrink-0">
         <div>
           <span className="text-[11px] font-bold tracking-[0.14em] text-charcoal-100 uppercase select-none">
-            The Analytist
-          </span>
-          <span className="ml-2.5 text-[9px] text-charcoal-600 tracking-widest uppercase select-none">
-            AI Error Assistant
+            Scapegoat
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Token optimisation badge */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[10px] cursor-pointer transition select-none ${
-              isOptimized
-                ? 'border-charcoal-700 text-emerald-500/80 hover:border-charcoal-600'
-                : 'border-charcoal-800 text-charcoal-600 hover:border-charcoal-700 hover:text-charcoal-400'
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOptimized ? 'bg-emerald-500 animate-pulse' : 'bg-charcoal-600'}`} />
-            <span>{isOptimized ? 'Optimized' : 'Full payload'}</span>
-          </button>
 
           {/* Settings */}
           <button
@@ -189,58 +171,13 @@ const App: React.FC = () => {
             {messages.length === 0 ? (
 
               /* ── Welcome state ── */
-              <div className="max-w-md mx-auto pt-10 space-y-8 select-none animate-fadeIn">
-                <div className="space-y-2">
-                  <h2 className="text-sm font-semibold text-charcoal-100 tracking-tight">
-                    Paste an error. Get a solution.
-                  </h2>
-                  <p className="text-[12px] text-charcoal-500 leading-relaxed">
-                    The Analytist reads your workspace files and generates a precise,
-                    step-by-step recovery guide for any terminal error or stack trace.
-                  </p>
-                </div>
-
-                {/* Steps */}
-                <div className="border-t border-charcoal-800">
-                  {[
-                    {
-                      n: '01',
-                      title: 'Paste Error',
-                      desc: 'Copy full tracebacks from terminal or the VS Code Problems panel.',
-                    },
-                    {
-                      n: '02',
-                      title: 'Auto Trace Parse',
-                      desc: 'File and line references are detected. Code windows extracted automatically.',
-                    },
-                    {
-                      n: '03',
-                      title: 'Recovery Guide',
-                      desc: 'Step-by-step walkthrough with copyable code fixes generated with high accuracy.',
-                    },
-                  ].map(step => (
-                    <div key={step.n} className="flex items-start gap-5 py-4 border-b border-charcoal-800">
-                      <span className="text-[10px] font-mono text-charcoal-600 mt-0.5 w-5 shrink-0">{step.n}</span>
-                      <div>
-                        <p className="text-[12px] font-medium text-charcoal-200 mb-0.5">{step.title}</p>
-                        <p className="text-[11px] text-charcoal-500 leading-relaxed">{step.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* API key warning */}
-                {isCredentialsMissing && (
-                  <div className="p-3 rounded-lg border border-red-500/15 bg-red-500/5 flex items-start gap-3">
-                    <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                    <div className="text-[11px]">
-                      <p className="font-medium text-red-300 mb-0.5">API key not configured</p>
-                      <p className="text-red-400/60">
-                        No key saved for {provider.toUpperCase()}. Open settings to add credentials.
-                      </p>
-                    </div>
-                  </div>
-                )}
+              <div className="flex flex-col items-center justify-center h-full select-none animate-fadeIn">
+                <p className="text-[13px] font-semibold text-charcoal-200 tracking-tight">
+                  Welcome. Let's lock in.
+                </p>
+                <p className="mt-1.5 text-[11px] text-charcoal-600">
+                  Drop your error below — I'll help you fix it.
+                </p>
               </div>
 
             ) : (

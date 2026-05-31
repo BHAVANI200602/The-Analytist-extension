@@ -3050,19 +3050,19 @@ var fs = __toESM(require("fs"));
 var path = __toESM(require("path"));
 var import_node_fetch = __toESM(require_lib2());
 function activate(context) {
-  console.log("[The Analytist Backend] Activating...");
+  console.log("[Scapegoat Backend] Activating...");
   let cachedWebviewPanel = null;
   const registerWebviewMessageHandler = (panel) => {
     panel.webview.onDidReceiveMessage(async (message) => {
-      console.log("[The Analytist Backend] Message command:", message.command);
+      console.log("[Scapegoat Backend] Message command:", message.command);
       try {
         if (message.command === "ready") {
           await sendInitialState(panel, context);
         }
         if (message.command === "saveApiKey") {
           if (message.provider && message.apiKey !== void 0) {
-            await context.secrets.store(`the-analytist.apiKey.${message.provider}`, message.apiKey);
-            vscode.window.showInformationMessage(`\u2705 Saved API Key for ${message.provider.toUpperCase()} securely.`);
+            await context.secrets.store(`scapegoat.apiKey.${message.provider}`, message.apiKey);
+            vscode.window.showInformationMessage(`\u2705 Scapegoat: Saved API Key for ${message.provider.toUpperCase()} securely.`);
             panel.webview.postMessage({
               command: "apiKeySaved",
               provider: message.provider,
@@ -3074,7 +3074,7 @@ function activate(context) {
           const status = {};
           const providers = ["openai", "gemini", "anthropic", "openrouter", "custom"];
           for (const p of providers) {
-            const key = await context.secrets.get(`the-analytist.apiKey.${p}`);
+            const key = await context.secrets.get(`scapegoat.apiKey.${p}`);
             status[p] = !!key;
           }
           panel.webview.postMessage({
@@ -3102,7 +3102,7 @@ function activate(context) {
           if (!errorText || !errorText.trim()) {
             throw new Error("Error log input is empty.");
           }
-          const apiKey = await context.secrets.get(`the-analytist.apiKey.${provider}`);
+          const apiKey = await context.secrets.get(`scapegoat.apiKey.${provider}`);
           if (!apiKey && provider !== "custom") {
             throw new Error(`API Key for ${provider?.toUpperCase()} is missing. Please save your key in Settings.`);
           }
@@ -3113,8 +3113,8 @@ function activate(context) {
           panel.webview.postMessage({ command: "diagnosticProgress", status: "Compacting payload context..." });
           const contextSnippets = [...detectedSnippets, ...manualSnippets];
           const uniqueSnippets = contextSnippets.filter((v, i, a) => a.findIndex((t) => t.filePath === v.filePath) === i);
-          const systemPrompt = `You are "The Analytist", a highly polished, state-of-the-art AI Coding Assistant specializing in workspace diagnostics and error resolution.
-Your goal is to analyze the user's compiler errors/stack trace logs alongside the relevant file code segments and output a highly accurate resolution.
+          const systemPrompt = `You are "Scapegoat", a highly polished, state-of-the-art AI Coding Assistant specializing in fixing errors and analyzing workspace files.
+Your goal is to fix errors and analyze files \u2014 you examine the user's compiler errors/stack trace logs alongside the relevant file code segments and output a highly accurate resolution.
 
 Requirements:
 1. Explain exactly what causes the error briefly.
@@ -3154,24 +3154,24 @@ ${snip.content}
           });
         }
       } catch (err) {
-        console.error("[The Analytist Backend] Error:", err);
+        console.error("[Scapegoat Backend] Error:", err);
         panel.webview.postMessage({
           command: "analysisResult",
           success: false,
           error: err.message || "An unexpected error occurred."
         });
-        vscode.window.showErrorMessage(`The Analytist: ${err.message || err}`);
+        vscode.window.showErrorMessage(`Scapegoat: ${err.message || err}`);
       }
     }, void 0, context.subscriptions);
   };
-  const openChatDisposable = vscode.commands.registerCommand("the-analytist.openChat", async () => {
+  const openChatDisposable = vscode.commands.registerCommand("scapegoat.openChat", async () => {
     if (cachedWebviewPanel) {
       cachedWebviewPanel.reveal(vscode.ViewColumn.Two);
       return;
     }
     cachedWebviewPanel = vscode.window.createWebviewPanel(
-      "theAnalytistPanel",
-      "The Analytist",
+      "scapegoatPanel",
+      "Scapegoat",
       vscode.ViewColumn.Two,
       {
         enableScripts: true,
@@ -3197,18 +3197,18 @@ ${snip.content}
       htmlContent = htmlContent.replace(/href="index\.css"/g, `href="${cssUri}"`);
       cachedWebviewPanel.webview.html = htmlContent;
     } catch (error) {
-      vscode.window.showErrorMessage('Failed to load Compiled React App. Please run "npm run compile" to bundle assets.');
-      console.error("[The Analytist Backend] Loading HTML error:", error);
+      vscode.window.showErrorMessage('Scapegoat: Failed to load Compiled React App. Please run "npm run compile" to bundle assets.');
+      console.error("[Scapegoat Backend] Loading HTML error:", error);
     }
     registerWebviewMessageHandler(cachedWebviewPanel);
   });
-  const analyzeErrorDisposable = vscode.commands.registerCommand("the-analytist.analyzeError", async () => {
+  const analyzeErrorDisposable = vscode.commands.registerCommand("scapegoat.analyzeError", async () => {
     const editor = vscode.window.activeTextEditor;
     let selectedText = "";
     if (editor) {
       selectedText = editor.document.getText(editor.selection).trim();
     }
-    await vscode.commands.executeCommand("the-analytist.openChat");
+    await vscode.commands.executeCommand("scapegoat.openChat");
     if (selectedText && cachedWebviewPanel) {
       cachedWebviewPanel.webview.postMessage({
         command: "autoPasteError",
@@ -3217,13 +3217,13 @@ ${snip.content}
     }
   });
   context.subscriptions.push(openChatDisposable, analyzeErrorDisposable);
-  console.log("[The Analytist Backend] Activated.");
+  console.log("[Scapegoat Backend] Activated.");
 }
 function deactivate() {
-  console.log("[The Analytist Backend] Deactivated.");
+  console.log("[Scapegoat Backend] Deactivated.");
 }
 async function sendInitialState(panel, context) {
-  const config = vscode.workspace.getConfiguration("the-analytist");
+  const config = vscode.workspace.getConfiguration("scapegoat");
   const defaultProvider = config.get("defaultProvider", "gemini");
   const defaultModel = config.get("defaultModel", "gemini-2.5-flash");
   const customEndpoint = config.get("customEndpoint", "http://localhost:11434/v1");
@@ -3231,7 +3231,7 @@ async function sendInitialState(panel, context) {
   const status = {};
   const providers = ["openai", "gemini", "anthropic", "openrouter", "custom"];
   for (const p of providers) {
-    const key = await context.secrets.get(`the-analytist.apiKey.${p}`);
+    const key = await context.secrets.get(`scapegoat.apiKey.${p}`);
     status[p] = !!key;
   }
   const files = await searchWorkspaceFiles("");
@@ -3263,7 +3263,7 @@ async function searchWorkspaceFiles(query) {
     }
     return relativePaths.slice(0, 150);
   } catch (e) {
-    console.error("[The Analytist Backend] File search error:", e);
+    console.error("[Scapegoat Backend] File search error:", e);
     return [];
   }
 }
@@ -3314,9 +3314,9 @@ async function autoResolveErrorFiles(errorText, opt) {
           opt
         );
         snippets.push(snippet);
-        console.log(`[The Analytist Backend] Stack match auto-loaded: ${relPath}:${loc.line}`);
+        console.log(`[Scapegoat Backend] Stack match auto-loaded: ${relPath}:${loc.line}`);
       } catch (err) {
-        console.error(`[The Analytist Backend] Read failed on: ${relPath}`, err);
+        console.error(`[Scapegoat Backend] Read failed on: ${relPath}`, err);
       }
     }
   }
@@ -3348,7 +3348,7 @@ async function readSelectedContextFiles(selectedFiles, opt) {
           lineRange: "Full File"
         });
       } catch (err) {
-        console.error(`[The Analytist Backend] Reading manual context file failed: ${relPath}`, err);
+        console.error(`[Scapegoat Backend] Reading manual context file failed: ${relPath}`, err);
       }
     }
   }
@@ -3435,7 +3435,7 @@ function compressWhitespace(content) {
 }
 async function callAIProvider(config, systemPrompt, userPrompt) {
   const { provider, model, apiKey, customEndpoint } = config;
-  console.log(`[The Analytist Backend] Querying ${provider} with model ${model}`);
+  console.log(`[Scapegoat Backend] Querying ${provider} with model ${model}`);
   if (provider === "gemini") {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const body = {

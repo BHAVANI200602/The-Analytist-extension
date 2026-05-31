@@ -1,14 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "the-analytist",
-  "displayName": "The Analytist",
-  "description": "Premium AI Error Assistant & Workspace Code Analyzer (React + Tailwind)",
-  "version": "1.0.1",
+  "name": "scapegoat",
+  "displayName": "Scapegoat",
+  "description": "Broke AI Assistant that fixes errors and analyzes files in your workspace ",
+  "version": "1.0.0",
   "publisher": "Bhavani-200602",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/BHAVANI200602/The-Analytist-extension"
+    "url": "https://github.com/BHAVANI200602/Scapegoat-extension.git"
   },
   "engines": {
     "vscode": "^1.74.0"
@@ -20,38 +20,38 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:the-analytist.openChat",
-    "onCommand:the-analytist.analyzeError"
+    "onCommand:scapegoat.openChat",
+    "onCommand:scapegoat.analyzeError"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "the-analytist.openChat",
-        "title": "The Analytist: Open AI Assistant"
+        "command": "scapegoat.openChat",
+        "title": "Scapegoat: Open AI Assistant"
       },
       {
-        "command": "the-analytist.analyzeError",
-        "title": "The Analytist: Analyze Error"
+        "command": "scapegoat.analyzeError",
+        "title": "Scapegoat: Analyze Error"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "the-analytist.analyzeError",
+          "command": "scapegoat.analyzeError",
           "when": "editorHasSelection",
           "group": "navigation"
         },
         {
-          "command": "the-analytist.openChat",
+          "command": "scapegoat.openChat",
           "group": "navigation"
         }
       ]
     },
     "configuration": {
-      "title": "The Analytist",
+      "title": "Scapegoat",
       "properties": {
-        "the-analytist.defaultProvider": {
+        "scapegoat.defaultProvider": {
           "type": "string",
           "default": "gemini",
           "enum": [
@@ -63,17 +63,17 @@
           ],
           "description": "Default AI service provider."
         },
-        "the-analytist.defaultModel": {
+        "scapegoat.defaultModel": {
           "type": "string",
           "default": "gemini-2.5-flash",
           "description": "Default model name to use."
         },
-        "the-analytist.customEndpoint": {
+        "scapegoat.customEndpoint": {
           "type": "string",
           "default": "http://localhost:11434/v1",
           "description": "Base URL for the Custom OpenAI-compatible provider (e.g. Ollama, LM Studio)."
         },
-        "the-analytist.enableTokenOptimization": {
+        "scapegoat.enableTokenOptimization": {
           "type": "boolean",
           "default": true,
           "description": "Automatically minimize token usage via sliding windows and comment stripping."

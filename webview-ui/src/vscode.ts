@@ -6,7 +6,7 @@ class VSCodeAPI {
       this.vscode = (window as any).acquireVsCodeApi();
     } catch (e) {
       this.vscode = null;
-      console.warn('[The Analytist UI] acquireVsCodeApi not found. Running in dev-browser mockup mode.');
+      console.warn('[Scapegoat UI] acquireVsCodeApi not found. Running in dev-browser mockup mode.');
     }
   }
 
