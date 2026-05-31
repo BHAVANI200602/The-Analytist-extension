@@ -1,0 +1,16 @@
+
+.vscode/**
+.git/**
+.gitignore
+.vscodeignore
+tsconfig.json
+package-lock.json
+*.vsix
+
+# Ignore all TypeScript source files , i just want to publish the compiled JavaScript files :)
+src/**
+
+
+webview-ui/**
+
+node_modules/**
