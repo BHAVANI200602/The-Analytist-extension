@@ -5,6 +5,10 @@
   "description": "Premium AI Error Assistant & Workspace Code Analyzer (React + Tailwind)",
   "version": "1.0.0",
   "publisher": "the-analytist",
+   "repository": {
+    "type": "git",
+    "url": "https://github.com/BHAVANI200602/The-Analytist-extension"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
