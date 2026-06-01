@@ -3,7 +3,8 @@
   "name": "scapegoat",
   "displayName": "Scapegoat",
   "description": "Broke AI Assistant that fixes errors and analyzes files in your workspace ",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "icon": "logo.png",
   "publisher": "Bhavani-200602",
   "license": "MIT",
   "repository": {
